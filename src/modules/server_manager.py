@@ -17,7 +17,6 @@ def get_status() -> str:
     uptime = str(timedelta(seconds=int(time.time() - psutil.boot_time())))
 
     status_message: str = f"""```
-Server status:
     CPU       {cpu_percent}%
     Memory    {memory_percent}%
     Disk      {disk_percent}%
@@ -29,11 +28,3 @@ Server status:
 def git_pull() -> None:
     result: subprocess.CompletedProcess[str] = subprocess.run(["git", "pull"], capture_output=True, text=True)
     if result.returncode != 0: raise Exception(result.stderr)
-
-
-def terminate_service() -> None:
-    loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
-    loop.stop()
-    loop.close()
-    logger.info("Exit")
-    sys.exit()
