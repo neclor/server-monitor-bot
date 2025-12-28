@@ -22,23 +22,27 @@ class ServerMonitorBot:
     def __init__(self) -> None:
         COMMANDS: dict[str, object] = {
             r"(?i)^(/?status)$": self._status,
-            r"(?i)^(/?logs)$": self._logs,
             r"(?i)^(/?clean)$": self._clean,
+            r"(?i)^(/?help)$": self._help,
+            r"(?i)^(/?version)$": self._version,
+        }
+        ADMIN_COMMANDS: dict[str, object] = {
+            r"(?i)^(/?logs)$": self._logs,
             r"(?i)^(/?update)$": self._update,
             r"(?i)^(/?restart)$": self._restart,
             r"(?i)^(/stop-bot)$": self._stop_bot,
-            r"(?i)^(/?help)$": self._help,
-            r"(?i)^(/?version)$": self._version,
         }
 
         self._client: TelegramClient = TelegramClient(api_keys.MY_SESSION_NAME, api_keys.API_ID, api_keys.API_HASH)
         self._is_running: bool = False
 
-        self._status_message_ids: dict[int, int] = {}
-        self._message_ids: dict[int, set[int]] = {}
+        self._status_message_ids: dict[int | str, int] = {}
+        self._message_ids: dict[int | str, set[int]] = {}
 
         for pattern, function in COMMANDS.items():
-            self._client.on(NewMessage(chats=api_keys.USERS, from_users=api_keys.USERS, pattern=pattern))(function)
+            self._client.on(NewMessage(chats=api_keys.CHAT_IDS, pattern=pattern))(function)
+        for pattern, function in ADMIN_COMMANDS.items():
+            self._client.on(NewMessage(chats=api_keys.CHAT_IDS, from_users=api_keys.ADMIN_IDS, pattern=pattern))(function)
 
 
     def start(self) -> None:
@@ -66,7 +70,7 @@ class ServerMonitorBot:
                 await asyncio.sleep(1)
                 continue
 
-            for chat_id in api_keys.USERS:
+            for chat_id in api_keys.CHAT_IDS:
                 self._remove_status_message_async(chat_id)
 
                 if (message_id := await self._safe_send(chat_id, sm.get_status() + "Auto")) is None: continue
@@ -148,15 +152,16 @@ class ServerMonitorBot:
         await self._safe_respond_cleanup(event, """```
 Commands:
     status          Show status
-    logs            Show logs
     clean           Clean chat
+    help            Show help
+    version         Show version
+Admin commands:
+    logs            Show logs
     update          Update bot
     restart         Restart bot
     /stop-bot       Stop the bot but
                         keeping the process alive
                         Warning: This action is irreversible
-    help            Show help
-    version         Show version
 ```"""
         )
 
@@ -167,7 +172,7 @@ Commands:
 
 
     async def _delete_status_messages(self) -> None:
-        status_message_ids: dict[int, int] = self._status_message_ids
+        status_message_ids: dict[int | str, int] = self._status_message_ids
         self._status_message_ids = {}
 
         tasks: list = [self._safe_delete(chat_id, message_id) for chat_id, message_id in status_message_ids.items()]
@@ -175,14 +180,14 @@ Commands:
 
 
     async def _delete_messages(self) -> None:
-        message_ids: dict[int, set[int]] = self._message_ids
+        message_ids: dict[int | str, set[int]] = self._message_ids
         self._message_ids = {}
 
         tasks: list = [self._safe_delete(chat_id, list(msg_ids)) for chat_id, msg_ids in message_ids.items()]
         if tasks: await asyncio.gather(*tasks)
 
 
-    def _remove_status_message_async(self, chat_id: int) -> None:
+    def _remove_status_message_async(self, chat_id: int | str) -> None:
         if (message_id := self._status_message_ids.pop(chat_id, None)) is None: return
         asyncio.create_task(self._safe_delete(chat_id, message_id))
 
@@ -207,7 +212,7 @@ Commands:
         return None
 
 
-    async def _safe_send(self, chat_id: int, text: str) -> int | None:
+    async def _safe_send(self, chat_id: int | str, text: str) -> int | None:
         try:
             return (await self._client.send_message(chat_id, text)).id
         except Exception as e:
@@ -215,7 +220,7 @@ Commands:
         return None
 
 
-    async def _safe_delete(self, chat_id: int, message_ids: int | list[int]) -> None:
+    async def _safe_delete(self, chat_id: int | str, message_ids: int | list[int]) -> None:
         try:
             await self._client.delete_messages(chat_id, message_ids)
         except Exception as e:
