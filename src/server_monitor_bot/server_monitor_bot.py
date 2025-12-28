@@ -40,9 +40,9 @@ class ServerMonitorBot:
         self._message_ids: dict[int | str, set[int]] = {}
 
         for pattern, function in COMMANDS.items():
-            self._client.on(NewMessage(chats=api_keys.CHAT_IDS, pattern=pattern))(function)
+            self._client.on(NewMessage(api_keys.CHAT_IDS, pattern=pattern))(function)
         for pattern, function in ADMIN_COMMANDS.items():
-            self._client.on(NewMessage(chats=api_keys.CHAT_IDS, from_users=api_keys.ADMIN_IDS, pattern=pattern))(function)
+            self._client.on(NewMessage(api_keys.CHAT_IDS, from_users=api_keys.ADMIN_IDS, pattern=pattern))(function)
 
 
     def start(self) -> None:
