@@ -17,10 +17,10 @@ def get_status() -> str:
     uptime = str(timedelta(seconds=int(time.time() - psutil.boot_time())))
 
     status_message: str = f"""```
-    CPU       {cpu_percent}%
-    Memory    {memory_percent}%
-    Disk      {disk_percent}%
-    Uptime    {uptime}
+CPU         {cpu_percent}%
+Memory      {memory_percent}%
+Disk        {disk_percent}%
+Uptime      {uptime}
 ```"""
     return status_message
 

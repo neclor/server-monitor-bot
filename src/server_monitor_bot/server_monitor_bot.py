@@ -1,9 +1,9 @@
 import asyncio
 import logging
-from telethon import TelegramClient, events
-from telethon.types import Message
+from typing import cast
+from telethon import TelegramClient
 from telethon.events import NewMessage
-import subprocess
+from telethon.custom import Message
 
 from configs import api_keys, log_config
 from modules import server_manager as sm
@@ -35,17 +35,17 @@ class ServerMonitorBot:
         self._is_running: bool = False
 
         self._status_message_ids: dict[int, int] = {}
-        self._events: list[NewMessage.Event] = []
+        self._message_ids: dict[int, set[int]] = {}
 
         for pattern, function in COMMANDS.items():
-            self._client.on(events.NewMessage(chats=api_keys.USERS, from_users=api_keys.USERS, pattern=pattern))(function)
+            self._client.on(NewMessage(chats=api_keys.USERS, from_users=api_keys.USERS, pattern=pattern))(function)
 
 
     def start(self) -> None:
         self._is_running = True
         loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
         loop.create_task(self._connect())
-        loop.create_task(self._update_status())
+        loop.create_task(self._autoupdate_status())
 
 
     async def _connect(self) -> None:
@@ -60,142 +60,170 @@ class ServerMonitorBot:
             await asyncio.sleep(self.RETRY_DEALY)
 
 
-    async def _update_status(self) -> None:
+    async def _autoupdate_status(self) -> None:
         while self._is_running:
             if not self._client.is_connected():
                 await asyncio.sleep(1)
                 continue
 
-            await self._delete_status_messages()
-            for user in api_keys.USERS:
-                try:
-                    status_message = await self._client.send_message(user, f"{sm.get_status()}Auto")
-                    self._status_message_ids[user] = status_message.id
-                except Exception as e:
-                    logger.warning(f"Error updating status: {e}")
+            for chat_id in api_keys.USERS:
+                self._remove_status_message_async(chat_id)
+
+                if (message_id := await self._safe_send(chat_id, sm.get_status() + "Auto")) is None: continue
+                self._status_message_ids[chat_id] = message_id
 
             await asyncio.sleep(self.STATUS_UPDATE_DELAY)
 
 
     async def _status(self, event: NewMessage.Event) -> None:
-        if (user := event.sender_id) in self._status_message_ids:
-            try:
-                await self._client.delete_messages(user, self._status_message_ids[user])
-            except Exception as e:
-                logger.warning(f"Deleting message error: {e}")
+        if (chat_id := event.chat_id) is None: return
+        asyncio.create_task(self._safe_delete_event(event))
 
-        self._status_message_ids[user] = event.message.id
-        await self._safe_edit(event, f"{sm.get_status()}User")
+        self._remove_status_message_async(chat_id)
+
+        if (message_id := await self._safe_respond(event, sm.get_status() + "User")) is None: return
+        self._status_message_ids[chat_id] = message_id
 
 
     async def _logs(self, event: NewMessage.Event) -> None:
+        asyncio.create_task(self._safe_delete_event(event))
+
         try:
             with open(log_config.LOG_PATH, "r") as log_file:
                 logs: str = log_file.read()
                 if len(logs) > self.TELEGRAM_MESSAGE_LIMIT: logs = logs[-self.TELEGRAM_MESSAGE_LIMIT:]
-            await self._safe_edit_cleanup(event, f"{log_config.LOG_PATH}:\n```{logs}```")
+            await self._safe_respond_cleanup(event, f"{log_config.LOG_PATH}:\n```{logs}```")
         except Exception as e:
             logger.error(f"Logs reading error: {e}")
-            await self._safe_edit_cleanup(event, f"Logs reading error: {e}")
+            await self._safe_respond_cleanup(event, f"Logs reading error: {e}")
 
 
     async def _clean(self, event: NewMessage.Event) -> None:
-        self._events.append(event)
-        await self._delete_events()
-        await self._delete_status_messages()
+        if (chat_id := event.chat_id) is None: return
+        asyncio.create_task(self._safe_delete(chat_id, event.id))
+
+        self._remove_status_message_async(chat_id)
+
+        if (message_ids := self._message_ids.pop(chat_id, None)) is None: return
+        await self._safe_delete(chat_id, list(message_ids))
 
 
     async def _update(self, event: NewMessage.Event) -> None:
+        asyncio.create_task(self._safe_delete_event(event))
+
         try:
             sm.git_pull()
-            await self._safe_edit_cleanup(event, "Updated")
+            await self._safe_respond_cleanup(event, "Updated")
         except Exception as e:
             logger.error(f"Update error: {e}")
-            await self._safe_edit_cleanup(event, f"Update error: {e}")
+            await self._safe_respond_cleanup(event, f"Update error: {e}")
 
 
     async def _restart(self, event: NewMessage.Event) -> None:
         self._is_running = False
+        await asyncio.gather(
+            self._safe_delete_event(event),
+            self._delete_messages(),
+            self._delete_status_messages()
+        )
 
-        await self._safe_edit(event, "Restart bot")
-        self._events.append(event)
-
-        await self._delete_events()
-        await self._delete_status_messages()
-
+        logger.info("Restart")
         asyncio.get_event_loop().stop()
 
 
     async def _stop_bot(self, event: NewMessage.Event) -> None:
         self._is_running = False
-
-        await self._safe_edit(event, "Bot has been stopped")
-        self._events.append(event)
-
-        await self._delete_events()
-        await self._delete_status_messages()
+        await asyncio.gather(
+            self._safe_delete_event(event),
+            self._delete_messages(),
+            self._delete_status_messages()
+        )
 
         self._client.disconnect()
         logger.info("Bot has been stopped")
 
 
     async def _help(self, event: NewMessage.Event) -> None:
-        await self._safe_edit_cleanup(event, """```
+        asyncio.create_task(self._safe_delete_event(event))
+        await self._safe_respond_cleanup(event, """```
 Commands:
-    status      Show status
-    logs        Show logs
-    clean       Clean chat
-    update      Update bot
-    restart     Restart bot
-    /stop-bot   Stop the bot but
-                    keeping the process alive
-                    Warning: This action is irreversible
-    help        Show help
-    version     Show version
+    status          Show status
+    logs            Show logs
+    clean           Clean chat
+    update          Update bot
+    restart         Restart bot
+    /stop-bot       Stop the bot but
+                        keeping the process alive
+                        Warning: This action is irreversible
+    help            Show help
+    version         Show version
 ```"""
         )
 
 
     async def _version(self, event: NewMessage.Event) -> None:
-        await self._safe_edit_cleanup(event, "Server Status Bot v2.0.0 neclor")
-
-
-    async def _safe_edit_cleanup(self, event: NewMessage.Event, text: str) -> None:
-        await self._safe_edit(event, text)
-        await self._queue_delete_event(event)
-
-
-    async def _safe_edit(self, event: NewMessage.Event, text: str) -> None:
-        try:
-            await event.edit(text)
-        except Exception as e:
-            logger.warning(f"Editing message error: {e}")
-
-
-    async def _queue_delete_event(self, event: NewMessage.Event) -> None:
-        if event not in self._events: self._events.append(event)
-        await asyncio.sleep(self.MESSAGE_LIFETIME)
-        if event in self._events:
-            try:
-                await event.delete()
-            except Exception as e:
-                logger.warning(f"Deleting message error: {e}")
-        if event in self._events: self._events.remove(event)
-
-
-    async def _delete_events(self) -> None:
-        for event in self._events:
-            try:
-                await event.delete()
-            except Exception as e:
-                logger.warning(f"Deleting message error: {e}")
-        self._events = []
+        asyncio.create_task(self._safe_delete_event(event))
+        await self._safe_respond_cleanup(event, "Server Monitor Bot v2.1.0 neclor")
 
 
     async def _delete_status_messages(self) -> None:
-        for user, id in self._status_message_ids.items():
-            try:
-                await self._client.delete_messages(user, id)
-            except Exception as e:
-                logger.warning(f"Deleting message error: {e}")
+        status_message_ids: dict[int, int] = self._status_message_ids
         self._status_message_ids = {}
+
+        tasks: list = [self._safe_delete(chat_id, message_id) for chat_id, message_id in status_message_ids.items()]
+        if tasks: await asyncio.gather(*tasks)
+
+
+    async def _delete_messages(self) -> None:
+        message_ids: dict[int, set[int]] = self._message_ids
+        self._message_ids = {}
+
+        tasks: list = [self._safe_delete(chat_id, list(msg_ids)) for chat_id, msg_ids in message_ids.items()]
+        if tasks: await asyncio.gather(*tasks)
+
+
+    def _remove_status_message_async(self, chat_id: int) -> None:
+        if (message_id := self._status_message_ids.pop(chat_id, None)) is None: return
+        asyncio.create_task(self._safe_delete(chat_id, message_id))
+
+
+    async def _safe_respond_cleanup(self, event: NewMessage.Event, text: str) -> None:
+        if (chat_id := event.chat_id) is None: return
+        if (message_id := await self._safe_respond(event, text)) is None: return
+
+        self._message_ids.setdefault(chat_id, set()).add(message_id)
+        await asyncio.sleep(self.MESSAGE_LIFETIME)
+
+        if ((message_ids := self._message_ids.get(chat_id)) is not None) and (message_id in message_ids):
+            message_ids.discard(message_id)
+            await self._safe_delete(chat_id, message_id)
+
+
+    async def _safe_respond(self, event: NewMessage.Event, text: str) -> int | None:
+        try:
+            return (await event.respond(text)).id
+        except Exception as e:
+            logger.warning(f"Response error: {e}")
+        return None
+
+
+    async def _safe_send(self, chat_id: int, text: str) -> int | None:
+        try:
+            return (await self._client.send_message(chat_id, text)).id
+        except Exception as e:
+            logger.warning(f"Sending message error: {e}")
+        return None
+
+
+    async def _safe_delete(self, chat_id: int, message_ids: int | list[int]) -> None:
+        try:
+            await self._client.delete_messages(chat_id, message_ids)
+        except Exception as e:
+            logger.warning(f"Deleting message error: {e}")
+
+
+    async def _safe_delete_event(self, event: NewMessage.Event) -> None:
+        try:
+            await event.delete()
+        except Exception as e:
+            logger.warning(f"Deleting event error: {e}")
