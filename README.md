@@ -8,7 +8,7 @@ A compact Python server monitor bot.
 - Run: `python src/main.py`
 
 ## Configuration
-- Edit `src/configs/api_keys.py` and `src/configs/log_config.py`.
+- Edit `src/configs/bot_config.py` and `src/configs/log_config.py`.
 - Define monitored targets in `src/modules/server_manager.py`.
 
 ## Logs
