@@ -5,8 +5,7 @@ API_ID: int = 0
 API_HASH: str = "API Hash"
 BOT_TOKEN: str = "Bot Token"
 
-SELF_ID: int | str = "me"
-ADMIN_IDS: list[int | str] = [SELF_ID]
-CHAT_IDS: list[int | str] = ADMIN_IDS + []
-
-
+ADMIN_IDS: set[int | str] = set()
+AUTO_UPDATE_IDS: set[int | str] = set()
+CHAT_IDS: set[int | str] = {*ADMIN_IDS, *AUTO_UPDATE_IDS,
+}

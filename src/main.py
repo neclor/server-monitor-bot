@@ -1,7 +1,6 @@
 import asyncio
 import logging
 
-from configs import log_config
 from server_monitor_bot.server_monitor_bot import ServerMonitorBot
 
 

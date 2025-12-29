@@ -1,5 +1,3 @@
-import sys
-import asyncio
 from datetime import timedelta
 import logging
 import psutil
@@ -16,12 +14,12 @@ def get_status() -> str:
     disk_percent = psutil.disk_usage("/").percent
     uptime = str(timedelta(seconds=int(time.time() - psutil.boot_time())))
 
-    status_message: str = f"""```
-CPU         {cpu_percent}%
-Memory      {memory_percent}%
-Disk        {disk_percent}%
-Uptime      {uptime}
-```"""
+    status_message: str = f"""
+**CPU** - {cpu_percent}%
+**Memory** - {memory_percent}%
+**Disk** - {disk_percent}%
+**Uptime** - {uptime}
+"""
     return status_message
 
 
