@@ -60,6 +60,7 @@ class ServerMonitorBot:
 
 
     async def _autoupdate_status(self) -> None:
+        await asyncio.sleep(bot_config.STATUS_UPDATE_START_DELAY)
         while self._is_running:
             if not self._client.is_connected():
                 await asyncio.sleep(1)
