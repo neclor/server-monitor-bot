@@ -1,6 +1,5 @@
 import logging
 
-from telethon import errors
 from telethon import TelegramClient
 from telethon.events import NewMessage
 
@@ -11,8 +10,6 @@ logger: logging.Logger = logging.getLogger(__name__)
 async def safe_send(client: TelegramClient, chat_id: int | str, text: str) -> int | None:
     try:
         return (await client.send_message(chat_id, text)).id
-    except errors.UserPrivacyRestrictedError:
-        print("aaaa")
     except Exception as e:
         logger.warning(f"Sending message error: {e}")
     return None

@@ -4,7 +4,7 @@ import logging
 from telethon import TelegramClient
 from telethon.events import NewMessage
 
-from server_monitor_bot import message_utils as mu
+from bot import message_utils as mu
 from modules import server_manager as sm
 
 from configs import api_keys, bot_config, log_config
@@ -13,7 +13,7 @@ from configs import api_keys, bot_config, log_config
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class ServerMonitorBot:
+class Bot:
     def __init__(self) -> None:
         self.COMMANDS: dict[str, object] = {
             r"(?i)^(/status)$": self._status,
