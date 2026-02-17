@@ -75,9 +75,7 @@ class Bot:
     async def _status(self, event: NewMessage.Event) -> None:
         if (chat_id := event.chat_id) is None: return
         self._auto_delete_command_async(event)
-
         self._remove_status_message_async(chat_id)
-
         if (message_id := await mu.safe_respond(event, sm.get_status() + "User")) is None: return
         self._status_message_ids[chat_id] = message_id
 
@@ -176,6 +174,7 @@ class Bot:
 
 
     def _remove_status_message_async(self, chat_id: int | str) -> None:
+        if bot_config.AUTO_DELETE_STATUS: return
         if (message_id := self._status_message_ids.pop(chat_id, None)) is None: return
         asyncio.create_task(mu.safe_delete(self._client, chat_id, message_id))
 
