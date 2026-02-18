@@ -6,6 +6,7 @@ from bot.bot import Bot
 
 from configs import log_config
 
+
 logger: logging.Logger = logging.getLogger(__name__)
 
 

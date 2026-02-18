@@ -72,24 +72,13 @@ class Bot:
             await asyncio.sleep(bot_config.STATUS_UPDATE_DELAY)
 
 
+#region Commands
     async def _status(self, event: NewMessage.Event) -> None:
         if (chat_id := event.chat_id) is None: return
         self._auto_delete_command_async(event)
         self._remove_status_message_async(chat_id)
         if (message_id := await mu.safe_respond(event, sm.get_status() + "User")) is None: return
         self._status_message_ids[chat_id] = message_id
-
-
-    async def _logs(self, event: NewMessage.Event) -> None:
-        self._auto_delete_command_async(event)
-        try:
-            with open(log_config.LOG_PATH, "r") as log_file:
-                logs: str = log_file.read()
-                if len(logs) > bot_config.MESSAGE_SIZE_LIMIT: logs = logs[-bot_config.MESSAGE_SIZE_LIMIT:]
-            await self._safe_respond_auto_delete(event, f"{log_config.LOG_PATH}:\n```\n{logs}```")
-        except Exception as e:
-            logger.error(f"Logs reading error: {e}")
-            await self._safe_respond_auto_delete(event, f"Logs reading error: {e}")
 
 
     async def _clean(self, event: NewMessage.Event) -> None:
@@ -100,28 +89,6 @@ class Bot:
 
         if (message_ids := self._message_ids.pop(chat_id, None)) is None: return
         await mu.safe_delete(self._client, chat_id, list(message_ids))
-
-
-    async def _update(self, event: NewMessage.Event) -> None:
-        self._auto_delete_command_async(event)
-        try:
-            sm.git_pull()
-            await self._safe_respond_auto_delete(event, "Updated")
-        except Exception as e:
-            logger.error(f"Update error: {e}")
-            await self._safe_respond_auto_delete(event, f"Update error: {e}")
-
-
-    async def _restart(self, event: NewMessage.Event) -> None:
-        await self._stop_auto_delete(event)
-        logger.info("Restart")
-        asyncio.get_event_loop().stop()
-
-
-    async def _stop_bot(self, event: NewMessage.Event) -> None:
-        await self._stop_auto_delete(event)
-        self._client.disconnect()
-        logger.info("Bot has been stopped")
 
 
     async def _help(self, event: NewMessage.Event) -> None:
@@ -147,6 +114,43 @@ class Bot:
     async def _version(self, event: NewMessage.Event) -> None:
         self._auto_delete_command_async(event)
         await self._safe_respond_auto_delete(event, "Server Monitor Bot v3.0.0 neclor")
+#endregion
+
+
+#region Admin commands
+    async def _logs(self, event: NewMessage.Event) -> None:
+        self._auto_delete_command_async(event)
+        try:
+            with open(log_config.LOG_PATH, "r") as log_file:
+                logs: str = log_file.read()
+                if len(logs) > bot_config.MESSAGE_SIZE_LIMIT: logs = logs[-bot_config.MESSAGE_SIZE_LIMIT:]
+            await self._safe_respond_auto_delete(event, f"{log_config.LOG_PATH}:\n```\n{logs}```")
+        except Exception as e:
+            logger.error(f"Logs reading error: {e}")
+            await self._safe_respond_auto_delete(event, f"Logs reading error: {e}")
+
+
+    async def _update(self, event: NewMessage.Event) -> None:
+        self._auto_delete_command_async(event)
+        try:
+            sm.git_pull()
+            await self._safe_respond_auto_delete(event, "Updated")
+        except Exception as e:
+            logger.error(f"Update error: {e}")
+            await self._safe_respond_auto_delete(event, f"Update error: {e}")
+
+
+    async def _restart(self, event: NewMessage.Event) -> None:
+        await self._stop_auto_delete(event)
+        logger.info("Restart")
+        asyncio.get_event_loop().stop()
+
+
+    async def _stop_bot(self, event: NewMessage.Event) -> None:
+        await self._stop_auto_delete(event)
+        self._client.disconnect()
+        logger.info("Bot has been stopped")
+#endregion
 
 
     async def _stop_auto_delete(self, event: NewMessage.Event) -> None:
