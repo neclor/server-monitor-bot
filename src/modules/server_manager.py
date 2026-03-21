@@ -23,7 +23,7 @@ def get_status() -> str:
 
     status_message: str = f"""
 **CPU** - {cpu_percent}%
-**Temp** - {temp}%
+**Temp** - {temp}
 **Memory** - {memory_percent}%
 **Disk** - {disk_percent}%
 **Uptime** - {uptime}
