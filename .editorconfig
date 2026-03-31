@@ -8,10 +8,7 @@ insert_final_newline = true
 
 [*.md]
 trim_trailing_whitespace = false
-indent_style = tab
-tab_width = 4
 
 [*.{py,pyi}]
 indent_style = space
 indent_size = 4
-
