@@ -1,5 +1,5 @@
-# API keys
-api_keys.py
+# Secrets
+.env
 *.session
 *.session-journal
 
@@ -181,4 +181,3 @@ cython_debug/
 .directory
 .DS_Store
 *~
-*.blend1
