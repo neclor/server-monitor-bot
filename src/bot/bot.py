@@ -24,6 +24,7 @@ async def _autoupdate_status() -> None:
     while True:
         if _last_status_id is not None:
             asyncio.create_task(client.delete_messages(bot_config.TG_BOT_CHAT_ID, _last_status_id))
+            _last_status_id = None
 
         msg: types.Message = await client.send_message(bot_config.TG_BOT_CHAT_ID, await server_monitor.get_status())
         _last_status_id = msg.id

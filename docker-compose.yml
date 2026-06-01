@@ -4,9 +4,9 @@ services:
     container_name: server-monitor-bot
     env_file: .env
     environment:
-      TG_BOT_SESSION_PATH: /data/bot_session
+      TG_BOT_SESSION_PATH: /app/sessions/bot_session
     volumes:
-      - ${HOST_DATA_DIR:-./data}:/data
+      - ${HOST_SESSIONS_DIR:-./sessions}:/app/sessions
     restart: unless-stopped
     pid: host
     deploy:

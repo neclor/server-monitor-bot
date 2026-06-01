@@ -13,4 +13,3 @@ TG_BOT_API_HASH: str = os.getenv("TG_BOT_API_HASH", "")
 TG_BOT_TOKEN: str = os.getenv("TG_BOT_TOKEN", "")
 TG_BOT_SESSION_PATH: str = os.getenv("TG_BOT_SESSION_PATH", "/data/bot")
 TG_BOT_CHAT_ID: int = int(os.getenv("TG_BOT_CHAT_ID", "0"))
-
