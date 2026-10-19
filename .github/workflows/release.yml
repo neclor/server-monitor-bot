@@ -87,7 +87,5 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          # Draft appears only after the image is pushed; publishing it is the
-          # deploy gate (deploy.yml runs on `release: published`).
           gh release view "$TAG" >/dev/null 2>&1 \
             || gh release create "$TAG" --title "$TAG" --generate-notes --draft
